@@ -2,5 +2,9 @@
   <Folder Name="/Solution Items/">
     <File Path=".gitignore" />
   </Folder>
-  <Project Path="AuthService.Api/AuthService.Api.csproj" />
+  <Project Path="src/Services/AuthService/AuthService.API/AuthService.API.csproj" Id="7f6a7ed3-7d0f-4c7f-9413-b08a3fbb24cf" />
+  <Project Path="src/Services/AuthService/AuthService.Application/AuthService.Application.csproj" Id="f9ba518a-d005-47a3-ae0b-5a7ab04604e0" />
+  <Project Path="src/Services/AuthService/AuthService.Contracts/AuthService.Contracts.csproj" Id="ed8c5b26-35c3-42b0-ac0b-ed243ca572ed" />
+  <Project Path="src/Services/AuthService/AuthService.Domain/AuthService.Domain.csproj" Id="452c894f-5b5d-4798-8c40-9eeb0cb4c8c1" />
+  <Project Path="src/Services/AuthService/AuthService.Infrastructure/AuthService.Infrastructure.csproj" Id="21d38006-3b2b-408e-be3e-6c819bd3c552" />
 </Solution>
