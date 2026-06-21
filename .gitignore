@@ -15,3 +15,8 @@ obj/
 
 appsettings.json
 appsettings.Development.json
+
+
+# JWT Keys
+src\Services\AuthService\AuthService.API\keys>
+src\Services\TradeService\TradeService.API\TradeService.API\keys>
