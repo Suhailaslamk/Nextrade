@@ -49,22 +49,33 @@ try
     // ── Generate Dev JWT Keys if needed ───────────────────────────────────────
 
     var jwtOptionsSection = builder.Configuration.GetSection(JwtOptions.SectionName);
-    var publicKeyPem = jwtOptionsSection["PublicKeyPem"];
-    var privateKeyPem = jwtOptionsSection["PrivateKeyPem"];
+    var publicKeyPath = jwtOptionsSection["PublicKeyPath"];
+    var privateKeyPath = jwtOptionsSection["PrivateKeyPath"];
 
-    // Generate temporary RSA keys in development if not provided or placeholders
+    // Generate temporary RSA keys in development if files are missing
     if (builder.Environment.IsDevelopment() && (
-        string.IsNullOrWhiteSpace(publicKeyPem) || publicKeyPem.StartsWith("REPLACE_WITH") ||
-        string.IsNullOrWhiteSpace(privateKeyPem) || privateKeyPem.StartsWith("REPLACE_WITH")))
+        string.IsNullOrWhiteSpace(publicKeyPath) || !File.Exists(publicKeyPath) ||
+        string.IsNullOrWhiteSpace(privateKeyPath) || !File.Exists(privateKeyPath)))
     {
         Log.Information("Generating temporary RSA key pair for development environment.");
-        using var tempRsa = RSA.Create(2048);
-        privateKeyPem = tempRsa.ExportPkcs8PrivateKeyPem();
-        publicKeyPem = tempRsa.ExportSubjectPublicKeyInfoPem();
+        
+        var keysDir = Path.Combine(builder.Environment.ContentRootPath, "Keys");
+        if (!Directory.Exists(keysDir))
+            Directory.CreateDirectory(keysDir);
 
-        // Update configuration and local variables
-        builder.Configuration[$"{JwtOptions.SectionName}:PrivateKeyPem"] = privateKeyPem;
-        builder.Configuration[$"{JwtOptions.SectionName}:PublicKeyPem"] = publicKeyPem;
+        var devPrivateKeyPath = Path.Combine(keysDir, "auth-private-key.dev.pem");
+        var devPublicKeyPath = Path.Combine(keysDir, "auth-public-key.dev.pem");
+
+        using var tempRsa = RSA.Create(2048);
+        var privatePem = tempRsa.ExportPkcs8PrivateKeyPem();
+        var publicPem = tempRsa.ExportSubjectPublicKeyInfoPem();
+
+        File.WriteAllText(devPrivateKeyPath, privatePem);
+        File.WriteAllText(devPublicKeyPath, publicPem);
+
+        // Update configuration
+        builder.Configuration[$"{JwtOptions.SectionName}:PrivateKeyPath"] = devPrivateKeyPath;
+        builder.Configuration[$"{JwtOptions.SectionName}:PublicKeyPath"] = devPublicKeyPath;
     }
 
     // ── Application and Infrastructure Layers ─────────────────────────────────
@@ -74,36 +85,20 @@ try
 
     // ── Authentication — RS256 JWT ────────────────────────────────────────────
 
-    var publicKeyConfig = builder.Configuration[$"{JwtOptions.SectionName}:PublicKeyPem"]
-        ?? throw new InvalidOperationException("JWT:PublicKeyPem is not configured.");
+    var configuredPublicKeyPath = builder.Configuration[$"{JwtOptions.SectionName}:PublicKeyPath"]
+        ?? throw new InvalidOperationException("JWT:PublicKeyPath is not configured.");
 
-    publicKeyPem = publicKeyConfig.Trim();
+    configuredPublicKeyPath = configuredPublicKeyPath.Trim();
 
-    // If configuration contains a path to a file, read the file contents.
-    if (File.Exists(publicKeyPem))
+    if (!File.Exists(configuredPublicKeyPath))
     {
-        publicKeyPem = File.ReadAllText(publicKeyPem).Trim();
-    }
-    else if (publicKeyPem.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
-    {
-        var path = publicKeyPem.Substring("file:".Length);
-        if (File.Exists(path))
-            publicKeyPem = File.ReadAllText(path).Trim();
+        throw new InvalidOperationException($"Public key file not found at '{configuredPublicKeyPath}'");
     }
 
-    // If the configured value is not a PEM string, generate a temporary RSA key pair for development/testing.
-    if (!publicKeyPem.StartsWith("-----BEGIN"))
-    {
-        Log.Information("Configured JWT public key is not PEM; generating temporary RSA key pair.");
-        using var tempRsa = RSA.Create(2048);
-        publicKeyPem = tempRsa.ExportSubjectPublicKeyInfoPem();
-        // Update configuration so subsequent runs can reuse or for consistency
-        builder.Configuration[$"{JwtOptions.SectionName}:PublicKeyPem"] = publicKeyPem;
-    }
-
+    var publicKeyPemContent = File.ReadAllText(configuredPublicKeyPath).Trim();
 
     var rsa = RSA.Create();
-    rsa.ImportFromPem(publicKeyPem);
+    rsa.ImportFromPem(publicKeyPemContent);
 
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>

@@ -19,15 +19,14 @@ public sealed class JwtOptions
     public int AccessTokenExpiryMinutes { get; set; } = 15;
 
     /// <summary>
-    /// PEM-encoded RSA private key. In production, load from Azure Key Vault.
-    /// In dev, loaded from user-secrets or appsettings.Development.json.
+    /// Path to PEM-encoded RSA private key.
     /// </summary>
-    public string PrivateKeyPem { get; set; } = string.Empty;
+    public string PrivateKeyPath { get; set; } = string.Empty;
 
     /// <summary>
-    /// PEM-encoded RSA public key. Distributed to all services.
+    /// Path to PEM-encoded RSA public key.
     /// </summary>
-    public string PublicKeyPem { get; set; } = string.Empty;
+    public string PublicKeyPath { get; set; } = string.Empty;
 }
 
 public sealed class JwtService : IJwtService
@@ -42,11 +41,21 @@ public sealed class JwtService : IJwtService
         _options = options.Value;
         _tokenHandler = new JwtSecurityTokenHandler();
 
+        if (string.IsNullOrWhiteSpace(_options.PrivateKeyPath))
+            throw new InvalidOperationException("Jwt:PrivateKeyPath is not configured.");
+        if (!System.IO.File.Exists(_options.PrivateKeyPath))
+            throw new System.IO.FileNotFoundException($"Private key file not found at '{_options.PrivateKeyPath}'");
+
+        if (string.IsNullOrWhiteSpace(_options.PublicKeyPath))
+            throw new InvalidOperationException("Jwt:PublicKeyPath is not configured.");
+        if (!System.IO.File.Exists(_options.PublicKeyPath))
+            throw new System.IO.FileNotFoundException($"Public key file not found at '{_options.PublicKeyPath}'");
+
         _privateKey = RSA.Create();
-        _privateKey.ImportFromPem(_options.PrivateKeyPem);
+        _privateKey.ImportFromPem(System.IO.File.ReadAllText(_options.PrivateKeyPath));
 
         _publicKey = RSA.Create();
-        _publicKey.ImportFromPem(_options.PublicKeyPem);
+        _publicKey.ImportFromPem(System.IO.File.ReadAllText(_options.PublicKeyPath));
     }
 
     public string GenerateAccessToken(User user)
